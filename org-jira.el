@@ -128,6 +128,7 @@
 (require 'dash)
 (require 'jiralib)
 (require 'org-jira-sdk)
+(require 'org-jira-capture)
 
 (defconst org-jira-version "4.3.1"
   "Current version of org-jira.el.")
@@ -141,6 +142,11 @@
   "Folder under which to store org-jira working files."
   :group 'org-jira
   :type 'directory)
+
+(defcustom org-jira-use-account-id t
+  "boolean value to control whether using accountId or username"
+  :group 'org-jira
+  :type 'boolean)
 
 (defcustom org-jira-project-filename-alist nil
   "Alist translating project keys to filenames.
@@ -624,8 +630,13 @@ it isn't already on."
    org-jira-users
    (mapcar (lambda (user)
              (cons (org-jira-decode (cdr (assoc 'displayName user)))
-                   (org-jira-decode (cdr (assoc 'accountId user)))))
+                   (org-jira-decode (cdr (assoc 'name user)))))
            (jiralib-get-users project-key))))
+
+(defun org-jira--get-user-or-accountId (user)
+  (if org-jira-use-account-id
+      (assoc 'accountId user)
+    (assoc 'name user)))
 
 (defun org-jira-get-reporter-candidates (project-key)
   "Get the list of assignable users for PROJECT-KEY, adding user set jira-users first."
@@ -633,7 +644,7 @@ it isn't already on."
    org-jira-users
    (mapcar (lambda (user)
              (cons (org-jira-decode (cdr (assoc 'displayName user)))
-                   (org-jira-decode (cdr (assoc 'accountId user)))))
+                   (org-jira-decode (cdr (org-jira--get-user-or-accountId user)))))
            (jiralib-get-users project-key))))
 
 (defun org-jira-entry-put (pom property value)
@@ -924,6 +935,25 @@ jql."
   (push fixversion-id org-jira-fixversion-id-history)
   (let ((jql (format "fixVersion = \"%s\""  fixversion-id)))
     (jiralib-do-jql-search jql)))
+
+
+(defvar org-to-jira-command "pandoc -f org -w markdown | /home/yanzhang/.local/lib/node_modules/j2m/src/bin/j2m.js --toJ --stdin")
+(defvar jira-to-org-command "/home/yanzhang/.local/lib/node_modules/j2m/src/bin/j2m.js --toM --stdin | pandoc -f markdown -w org")
+
+(defun transform-content-with-command (content command)
+  (with-temp-buffer
+    (insert content)
+    (with-output-to-string
+      (let ((begin (buffer-end -1))
+            (end   (buffer-end 1)))
+        (shell-command-on-region begin end command standard-output)))))
+
+(defun convert-org-to-jira (content)
+  (transform-content-with-command content org-to-jira-command))
+
+(defun convert-jira-to-org (content)
+  (transform-content-with-command content jira-to-org-command))
+
 
 ;;;###autoload
 (defun org-jira-get-summary ()
@@ -1219,52 +1249,54 @@ ISSUES is a list of `org-jira-sdk-issue' records."
   (org-cycle))
 
 ;;;###autoload
-(defun org-jira-update-comment ()
-  "Update a comment for the current issue."
-  (interactive)
-  (let* ((issue-id (org-jira-get-from-org 'issue 'key)) ; Really the key
-         (filename (org-jira-filename))
-         (comment-id (org-jira-get-from-org 'comment 'id))
-         (comment (replace-regexp-in-string "^  " "" (org-jira-get-comment-body comment-id))))
-    (lexical-let ((issue-id issue-id)
-                  (filename filename))
-      (let ((callback-edit
-             (cl-function
-              (lambda (&key _data &allow-other-keys)
-                (ensure-on-issue-id-with-filename
-                    issue-id filename
-                    (org-jira-update-comments-for-current-issue)))))
-            (callback-add
-             (cl-function
-              (lambda (&key _data &allow-other-keys)
-                (ensure-on-issue-id-with-filename
-                    issue-id filename
-                    ;; @TODO :optim: Has to be a better way to do this
-                    ;; than delete region (like update the unmarked
-                    ;; one)
-                    (org-jira-delete-current-comment)
-                    (org-jira-update-comments-for-current-issue))))))
-        (if comment-id
-            (jiralib-edit-comment issue-id comment-id comment callback-edit)
-          (jiralib-add-comment issue-id comment callback-add))))))
+;; (defun org-jira-update-comment ()
+;;   "Update a comment for the current issue."
+;;   (interactive)
+;;   (let* ((issue-id (org-jira-get-from-org 'issue 'key)) ; Really the key
+;;          (filename (org-jira-filename))
+;;          (comment-id (org-jira-get-from-org 'comment 'id))
+;;          (comment (replace-regexp-in-string "^  " "" (org-jira-get-comment-body comment-id))))
+;;     (lexical-let ((issue-id issue-id)
+;;                   (filename filename))
+;;       (let ((callback-edit
+;;              (cl-function
+;;               (lambda (&key _data &allow-other-keys)
+;;                 (ensure-on-issue-id-with-filename
+;;                     issue-id filename
+;;                     (org-jira-update-comments-for-current-issue)))))
+;;             (callback-add
+;;              (cl-function
+;;               (lambda (&key _data &allow-other-keys)
+;;                 (ensure-on-issue-id-with-filename
+;;                     issue-id filename
+;;                     ;; @TODO :optim: Has to be a better way to do this
+;;                     ;; than delete region (like update the unmarked
+;;                     ;; one)
+;;                     (org-jira-delete-current-comment)
+;;                     (org-jira-update-comments-for-current-issue))))))
+;;         (if comment-id
+;;             (jiralib-edit-comment issue-id comment-id comment callback-edit)
+;;           (jiralib-add-comment issue-id comment callback-add))))))
 
-(defun org-jira-add-comment (issue-id filename comment)
+(defun org-jira-add-comment (issue-id filename)
   "For ISSUE-ID in FILENAME, add a new COMMENT string to the issue region."
   (interactive
    (let* ((issue-id (org-jira-get-from-org 'issue 'id))
-          (filename (org-jira-filename))
-          (comment (read-string (format  "Comment (%s): " issue-id))))
-     (list issue-id filename comment)))
+          (filename (org-jira-filename)))
+     (list issue-id filename)))
   (lexical-let ((issue-id issue-id)
                 (filename filename))
-    (ensure-on-issue-id-with-filename issue-id filename
-      (goto-char (point-max))
-      (jiralib-add-comment
-       issue-id comment
-       (cl-function
-        (lambda (&key _data &allow-other-keys)
-          (ensure-on-issue-id-with-filename issue-id filename
-            (org-jira-update-comments-for-current-issue))))))))
+    (ensure-on-issue-id-with-filename
+        issue-id filename
+        (goto-char (point-max))
+        (org-jira-capture
+         (lambda (comment)
+           (jiralib-add-comment
+            issue-id comment
+            (cl-function
+             (lambda (&key _data &allow-other-keys)
+               (ensure-on-issue-id-with-filename issue-id filename
+                                                 (org-jira-update-comments-for-current-issue))))))))))
 
 (defun org-jira-org-clock-to-date (org-time)
   "Convert ORG-TIME formatted date into a plain date string."
@@ -1466,7 +1498,7 @@ Expects input in format such as: [2017-04-05 Wed 01:00]--[2017-04-05 Wed 01:46] 
           (org-jira-entry-put (point) "updated" updated))
         (goto-char (point-max))
         ;;  Insert 2 spaces of indentation so Jira markup won't cause org-markup
-        (org-jira-insert (replace-regexp-in-string "^" "  " (or body "")))))))
+        (org-jira-insert (replace-regexp-in-string "^" "  " (or (convert-jira-to-org body) "")))))))
 
 (defun org-jira-update-comments-for-issue (Issue)
   "Update the comments for the specified ISSUE issue."
@@ -1629,7 +1661,7 @@ purpose of wiping an old subtree."
                           (cdr (rassoc user jira-users)))))
           (when (null reporter)
             (error "No reporter found, this should probably never happen."))
-          (org-jira-update-issue-details issue-id filename :reporter (jiralib-get-user-account-id project reporter)))
+          (org-jira-update-issue-details issue-id filename :reporter reporter))
       (error "Not on an issue"))))
 
 ;;;###autoload
@@ -1650,7 +1682,7 @@ purpose of wiping an old subtree."
                           (cdr (rassoc user jira-users)))))
           (when (null assignee)
             (error "No assignee found, use org-jira-unassign-issue to make the issue unassigned"))
-          (org-jira-update-issue-details issue-id filename :assignee (jiralib-get-user-account-id project assignee)))
+          (org-jira-update-issue-details issue-id filename :assignee assignee))
       (error "Not on an issue"))))
 
 ;;;###autoload
@@ -1796,7 +1828,8 @@ that should be bound to an issue."
   (let* ((project-components (jiralib-get-components project))
          (jira-users (org-jira-get-assignable-users project))
          (user (completing-read "Assignee: " (mapcar 'car jira-users)))
-         (priority (car (rassoc (org-jira-read-priority) (jiralib-get-priorities))))
+         (component (completing-read "Component: " (mapcar 'cdr project-components)))
+         ;; (priority (car (rassoc (org-jira-read-priority) (jiralib-get-priorities))))
          (ticket-struct
           `((fields
              (project (key . ,project))
@@ -1808,10 +1841,11 @@ that should be bound to an issue."
                                  (if (and (boundp 'parent-id) parent-id)
                                      (format " (subtask of [jira:%s])" parent-id)
                                    "")))
-             (description . ,description)
-             (priority (id . ,priority))
+             (components ((name . ,component)))
+             ;; (description . ,description)
+             ;; (priority (id . ,priority))
              ;; accountId should be nil if Unassigned, not the key slot.
-             (assignee (accountId . ,(or (cdr (assoc user jira-users)) nil)))))))
+             (assignee (name . ,(or (cdr (assoc user jira-users)) nil)))))))
     ticket-struct))
 
 ;;;###autoload
@@ -2214,8 +2248,8 @@ otherwise it should return:
                    (cons 'priority (org-jira-get-id-name-alist org-issue-priority
                                                        (jiralib-get-priorities)))
                    (cons 'description org-issue-description)
-                   (cons 'assignee (list (cons 'id (jiralib-get-user-account-id project org-issue-assignee))))
-                   (cons 'reporter (list (cons 'id (jiralib-get-user-account-id project org-issue-reporter))))
+                   (cons 'assignee (list (cons 'name (jiralib-get-user-name project org-issue-assignee))))
+                   (cons 'reporter (list (cons 'name (jiralib-get-user-name project org-issue-reporter))))
                    (cons 'summary (org-jira-strip-priority-tags (org-jira-get-issue-val-from-org 'summary)))
                    (cons 'issuetype `((id . ,org-issue-type-id)
       (name . ,org-issue-type))))))

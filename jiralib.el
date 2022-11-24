@@ -331,7 +331,7 @@ This produces a noticeable slowdown and is not recommended by
 request.el, so if at all possible, it should be avoided."
   ;; @TODO :auth: Probably pass this all the way down, but I think
   ;; it may be OK at the moment to just set the variable each time.
-  
+
   (setq jiralib-complete-callback
         ;; Don't run with async if we don't have a login token yet.
         (if jiralib-token callback nil))
@@ -342,7 +342,7 @@ request.el, so if at all possible, it should be avoided."
   (unless jiralib-issue-regexp
     (let ((projects (mapcar (lambda (e) (downcase (cdr (assoc 'key e))))
                             (append (jiralib--rest-call-it
-                                     "/rest/api/2/project"
+                                     "/rest/api/latest/project"
                                      :params '((expand . "description,lead,url,projectKeys")))
                                     nil)
                             )))
@@ -355,76 +355,76 @@ request.el, so if at all possible, it should be avoided."
     (unless jiralib-token
       (call-interactively 'jiralib-login))
     (cl-case (intern method)
-      ('getStatuses (jiralib--rest-call-it "/rest/api/2/status"))
-      ('getIssueTypes (jiralib--rest-call-it "/rest/api/2/issuetype"))
-      ('getSubTaskIssueTypes (jiralib--rest-call-it "/rest/api/2/issuetype"))
+      ('getStatuses (jiralib--rest-call-it "/rest/api/latest/status"))
+      ('getIssueTypes (jiralib--rest-call-it "/rest/api/latest/issuetype"))
+      ('getSubTaskIssueTypes (jiralib--rest-call-it "/rest/api/latest/issuetype"))
       ('getIssueTypesByProject
-       (let ((response (jiralib--rest-call-it (format "/rest/api/2/project/%s" (first params)))))
+       (let ((response (jiralib--rest-call-it (format "/rest/api/latest/project/%s" (first params)))))
          (cl-coerce (cdr (assoc 'issueTypes response)) 'list)))
-      ('getUser (jiralib--rest-call-it "/rest/api/2/user" :params `((accountId . ,(first params)))))
-      ('getVersions (jiralib--rest-call-it (format "/rest/api/2/project/%s/versions" (first params))))
+      ('getUser (jiralib--rest-call-it "/rest/api/latest/user" :params `((username . ,(first params)))))
+      ('getVersions (jiralib--rest-call-it (format "/rest/api/latest/project/%s/versions" (first params))))
 
       ;; Worklog calls
       ('getWorklogs
-       (jiralib--rest-call-it (format "/rest/api/2/issue/%s/worklog" (first params))))
+       (jiralib--rest-call-it (format "/rest/api/latest/issue/%s/worklog" (first params))))
 
       ('addWorklog
-       (jiralib--rest-call-it (format "/rest/api/2/issue/%s/worklog" (first params))
+       (jiralib--rest-call-it (format "/rest/api/latest/issue/%s/worklog" (first params))
                               :type "POST"
                               :data (json-encode (second params))))
 
       ('updateWorklog
-       (jiralib--rest-call-it (format "/rest/api/2/issue/%s/worklog/%s" (first params) (second params))
+       (jiralib--rest-call-it (format "/rest/api/latest/issue/%s/worklog/%s" (first params) (second params))
                               :type "PUT"
                               :data (json-encode (third params))))
 
       ('addWorklogAndAutoAdjustRemainingEstimate
-       (jiralib--rest-call-it (format "/rest/api/2/issue/%s/worklog" (first params))
+       (jiralib--rest-call-it (format "/rest/api/latest/issue/%s/worklog" (first params))
                               :type "POST"
                               :data (json-encode (second params))))
 
       ('addComment (jiralib--rest-call-it
-                    (format "/rest/api/2/issue/%s/comment" (first params))
+                    (format "/rest/api/latest/issue/%s/comment" (first params))
                     :type "POST"
                     :data (json-encode (second params))))
       ('createIssue
        ;; Creating the issue doesn't return it, a second call must be
        ;; made to pull it in by using the self key in response.
        (let ((response (jiralib--rest-call-it
-                        "/rest/api/2/issue"
+                        "/rest/api/latest/issue"
                         :type "POST"
                         :data (json-encode (first params)))))
          (jiralib--rest-call-it (cdr (assoc 'self response)) :type "GET")
          ))
       ('createIssueWithParent
        (let ((response (jiralib--rest-call-it
-                        "/rest/api/2/issue"
+                        "/rest/api/latest/issue"
                         :type "POST"
                         :data (json-encode (first params)))))
          (jiralib--rest-call-it (cdr (assoc 'self response)) :type "GET")
          ))
       ('editComment (jiralib--rest-call-it
-                     (format "/rest/api/2/issue/%s/comment/%s" (first params) (second params))
+                     (format "/rest/api/latest/issue/%s/comment/%s" (first params) (second params))
                      :data (json-encode `((body . ,(third params))))
                      :type "PUT"))
       ('getBoard  (jiralib--rest-call-it (format "/rest/agile/1.0/board/%s"  (first params))))
       ('getBoards (apply 'jiralib--agile-call-it "/rest/agile/1.0/board" 'values params))
       ('getComment (org-jira-find-value
                      (jiralib--rest-call-it
-                      (format "/rest/api/2/issue/%s/comment/%s" (first params) (second params)))
+                      (format "/rest/api/latest/issue/%s/comment/%s" (first params) (second params)))
                      'comments))
       ('getComments (org-jira-find-value
                      (jiralib--rest-call-it
-                      (format "/rest/api/2/issue/%s/comment" (first params)))
+                      (format "/rest/api/latest/issue/%s/comment" (first params)))
                      'comments))
       ('getAttachmentsFromIssue (org-jira-find-value
                                  (jiralib--rest-call-it
-                                  (format "/rest/api/2/issue/%s?fields=attachment" (first params)))
+                                  (format "/rest/api/latest/issue/%s?fields=attachment" (first params)))
                                  'comments))
       ('getComponents (jiralib--rest-call-it
-                       (format "/rest/api/2/project/%s/components" (first params))))
+                       (format "/rest/api/latest/project/%s/components" (first params))))
       ('getIssue (jiralib--rest-call-it
-                  (format "/rest/api/2/issue/%s" (first params))))
+                  (format "/rest/api/latest/issue/%s" (first params))))
       ('getIssuesFromBoard  (apply 'jiralib--agile-call-it
 				   (format "rest/agile/1.0/board/%d/issue" (first params))
 				   'issues
@@ -435,42 +435,42 @@ request.el, so if at all possible, it should be avoided."
 				   'issues
 				   (cdr params)))
       ('getIssuesFromJqlSearch  (append (cdr ( assoc 'issues (jiralib--rest-call-it
-                                                              "/rest/api/2/search"
+                                                              "/rest/api/latest/search"
                                                               :type "POST"
                                                               :data (json-encode `((jql . ,(first params))
                                                                                    (maxResults . ,(second params)))))))
                                         nil))
       ('getPriorities (jiralib--rest-call-it
-                       "/rest/api/2/priority"))
-      ('getProjects (jiralib--rest-call-it "rest/api/2/project"))
+                       "/rest/api/latest/priority"))
+      ('getProjects (jiralib--rest-call-it "rest/api/latest/project"))
       ('getProjectsNoSchemes (append (jiralib--rest-call-it
-                                      "/rest/api/2/project"
+                                      "/rest/api/latest/project"
                                       :params '((expand . "description,lead,url,projectKeys"))) nil))
       ('getResolutions (append (jiralib--rest-call-it
-                                "/rest/api/2/resolution") nil))
+                                "/rest/api/latest/resolution") nil))
       ('getAvailableActions
        (mapcar
         (lambda (trans)
           `(,(assoc 'name trans) ,(assoc 'id trans)))
-        (cdadr (jiralib--rest-call-it (format "/rest/api/2/issue/%s/transitions" (first params))))))
+        (cdadr (jiralib--rest-call-it (format "/rest/api/latest/issue/%s/transitions" (first params))))))
       ('getFieldsForAction (org-jira-find-value (car (let ((issue (first params))
                                                            (action (second params)))
                                                        (seq-filter (lambda (trans)
                                                                      (or (string-equal action (org-jira-find-value trans 'id))
                                                                          (string-equal action (org-jira-find-value trans 'name))))
                                                                    (cdadr (jiralib--rest-call-it
-                                                                           (format "/rest/api/2/issue/%s/transitions" (first params))
+                                                                           (format "/rest/api/latest/issue/%s/transitions" (first params))
                                                                            :params '((expand . "transitions.fields")))))))
                                                 'fields))
       ('progressWorkflowAction (jiralib--rest-call-it
-                                (format "/rest/api/2/issue/%s/transitions" (first params))
+                                (format "/rest/api/latest/issue/%s/transitions" (first params))
                                 :type "POST"
                                 :data (json-encode `(,(car (second params)) ,(car (third params))))))
       ('getUsers
-       (jiralib--rest-call-it (format "/rest/api/2/user/assignable/search?project=%s&maxResults=10000" (first params))
+       (jiralib--rest-call-it (format "/rest/api/latest/user/assignable/search?project=%s&maxResults=10000" (first params))
                               :type "GET"))
       ('updateIssue (jiralib--rest-call-it
-                     (format "/rest/api/2/issue/%s" (first params))
+                     (format "/rest/api/latest/issue/%s" (first params))
                      :type "PUT"
                      :data (json-encode `((fields . ,(second params)))))))))
 
@@ -558,7 +558,7 @@ first is normally used."
 
 DATA is a list of association lists (a SOAP array-of type)
 KEY-FIELD is the field to use as the key in the returned alist
-VALUE-FIELD is the field to use as the value in the returned alist"  
+VALUE-FIELD is the field to use as the value in the returned alist"
   (cl-loop for element in data
         collect (cons (cdr (assoc key-field element))
                       (cdr (assoc value-field element)))))
@@ -596,7 +596,7 @@ emacs-lisp"
 
 (defun jiralib--rest-api-for-issue-key (key)
   "Return jira rest api for issue KEY."
-  (concat "rest/api/2/issue/" key))
+  (concat "rest/api/latest/issue/" key))
 
 (defun jiralib-filter-fields-by-exclude-list (exclude-list fields)
   (cl-remove-if
@@ -935,17 +935,23 @@ Return nil if the field is not found"
   ;;       (setf jiralib-user-fullnames (append jiralib-user-fullnames (list (cons account-id (cdr (assoc 'fullname user))))))
   ;;       (cdr (assoc 'fullname user))))))
 
-(defun jiralib-get-user-fullname (account-id)
-  "Return the full name (displayName) of the user with ACCOUNT-ID."
-  (cl-loop for user in (jiralib-get-users nil)
-        when (rassoc account-id user)
-        return (cdr (assoc 'displayName user))))
+;; (defun jiralib-get-user-fullname (account-id)
+;;   "Return the full name (displayName) of the user with ACCOUNT-ID."
+;;   (cl-loop for user in (jiralib-get-users nil)
+;;         when (rassoc account-id user)
+;;         return (cdr (assoc 'displayName user))))
 
 (defun jiralib-get-user-account-id (project full-name)
     "Return the account-id (accountId) of the user with FULL-NAME (displayName) in PROJECT."
   (cl-loop for user in (jiralib-get-users project)
-        when (rassoc full-name user)
-        return (cdr (assoc 'accountId user))))
+           when (rassoc full-name user)
+           return (cdr (assoc 'accountId user))))
+
+(defun jiralib-get-user-name (project full-name)
+  "Return the username of the user with FULL-NAME (displayName) in PROJECT."
+  (cl-loop for user in (jiralib-get-users project)
+           when (rassoc full-name user)
+           return (cdr (assoc 'name user))))
 
 (defun jiralib-get-filter (filter-id)
   "Return a filter given its FILTER-ID."
@@ -1097,10 +1103,10 @@ Return no more than MAX-NUM-RESULTS."
   "Return all visible subtask issue types in the system."
   (jiralib-call "getSubTaskIssueTypes" nil))
 
-(defun jiralib-get-user (account-id)
+(defun jiralib-get-user (username)
   "Return a user's information given their full name."
-  (cond ((eq 0 (length account-id)) nil) ;; Unassigned
-        (t (jiralib-call "getUser" nil account-id))))
+  (cond ((eq 0 (length username)) nil) ;; Unassigned
+        (t (jiralib-call "getUser" nil username))))
 
 (defvar jiralib-users-cache nil "Cached list of users.")
 
@@ -1108,9 +1114,13 @@ Return no more than MAX-NUM-RESULTS."
   "Return assignable users information given the PROJECT-KEY."
   (unless jiralib-users-cache
     (setq jiralib-users-cache
-          (jiralib-call "getUsers" nil project-key))
-    (cl-loop for (name . id) in org-jira-users do
-          (setf jiralib-users-cache (append (list (jiralib-get-user id)) jiralib-users-cache))))
+          (cl-remove-if (lambda (user-info)
+                          (let ((email (org-jira-decode (cdr (assoc 'emailAddress user-info)))))
+                            (string= "" email)))
+                        (jiralib-call "getUsers" nil project-key)))
+    (cl-loop for (name . user) in org-jira-users do
+             (setf jiralib-users-cache (append (list (jiralib-get-user user)) jiralib-users-cache))
+             ))
   jiralib-users-cache)
 
 (defun jiralib-get-versions (project-key)

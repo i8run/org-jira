@@ -10,6 +10,7 @@ test:
 	-l jiralib.el \
 	-l org-jira-sdk.el \
 	-l org-jira.el \
+	-l org-jira-capture.el \
 	-l t/org-jira-t.el \
 	-l t/jiralib-t.el \
 	-f ert-run-tests-batch-and-exit
