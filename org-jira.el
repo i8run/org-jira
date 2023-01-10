@@ -938,7 +938,7 @@ jql."
 
 
 (defvar org-to-jira-command "pandoc -f org -w markdown | /home/yanzhang/.local/lib/node_modules/j2m/src/bin/j2m.js --toJ --stdin")
-(defvar jira-to-org-command "/home/yanzhang/.local/lib/node_modules/j2m/src/bin/j2m.js --toM --stdin | pandoc -f markdown -w org")
+(defvar jira-to-org-command "/home/yanzhang/.local/lib/node_modules/j2m/src/bin/j2m.js --toM --stdin | pandoc -f gfm -w org")
 
 (defun transform-content-with-command (content command)
   (with-temp-buffer
@@ -1292,7 +1292,7 @@ ISSUES is a list of `org-jira-sdk-issue' records."
         (org-jira-capture
          (lambda (comment)
            (jiralib-add-comment
-            issue-id comment
+            issue-id (convert-org-to-jira comment)
             (cl-function
              (lambda (&key _data &allow-other-keys)
                (ensure-on-issue-id-with-filename issue-id filename

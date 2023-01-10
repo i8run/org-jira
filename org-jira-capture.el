@@ -54,6 +54,7 @@ for a capture buffer.")
       (funcall fun content))))
 
 (defun org-jira-capture-kill ()
+  (interactive)
   (set-window-configuration org-jira-capture-window-config-cache)
   (setq org-jira-capture-window-config-cache nil)
   (setq org-jira-capture-finalize-hook nil))
