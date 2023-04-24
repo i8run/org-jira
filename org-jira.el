@@ -274,6 +274,11 @@ instance."
   :group 'org-jira
   :type 'string)
 
+(defcustom org-jira-boards-name "RV SW team board"
+  "The name of the boards"
+  :group 'org-jira
+  :type 'string)
+
 (defcustom org-jira-download-ask-override t
   "Ask before overriding tile."
   :group 'org-jira
@@ -1719,6 +1724,7 @@ purpose of wiping an old subtree."
 (defvar org-jira-project-read-history nil)
 (defvar org-jira-boards-read-history nil)
 (defvar org-jira-sprints-read-history nil)
+(defvar org-jira-epics-read-history nil)
 (defvar org-jira-components-read-history nil)
 (defvar org-jira-priority-read-history nil)
 (defvar org-jira-type-read-history nil)
@@ -1737,7 +1743,8 @@ purpose of wiping an old subtree."
 (defun org-jira-read-board ()
   "Read board name. Returns cons pair (name . integer-id)"
   (let* ((boards-alist
-          (jiralib-make-assoc-list (jiralib-get-boards) 'name 'id))
+          (jiralib-make-assoc-list (jiralib-get-boards
+                                    `((name ,org-jira-boards-name))) 'name 'id))
          (board-name
           (completing-read "Boards: "  boards-alist
                            nil  t  nil
@@ -1754,7 +1761,40 @@ purpose of wiping an old subtree."
 			    nil t nil
 			    'org-jira-sprints-read-history
 			    (car org-jira-sprints-read-history))))
-       (assoc sprint-name sprints-alist)))
+    (assoc sprint-name sprints-alist)))
+
+(defun org-jira-read-epic (board)
+  (let* ((epics-alist
+          (jiralib-make-assoc-list (append (alist-get 'values (jiralib-get-board-epics board)) nil) 'name 'id))
+         (epic-name
+          (completing-read "Epics: " epics-alist
+                           nil t nil
+                           'org-jira-epics-read-history
+                           (car org-jira-epics-read-history))))
+    (assoc epic-name epics-alist)))
+
+(defun org-jira--move-issue-to-epic (issue epic)
+  (jiralib-move-issue-to-epic issue epic))
+
+(defun org-jira-move-issue-to-epic (issue)
+  (let* ((board (org-jira-read-board))
+         (board-id (cdr board))
+         (epic (org-jira-read-epic board-id))
+         (epic-id (cdr epic)))
+    (org-jira--move-issue-to-epic issue epic-id)
+    (org-jira-entry-put (point) "Epic" (car epic))))
+
+(defun org-jira--move-issue-to-sprint (issue sprint)
+  (jiralib-move-issue-to-sprint issue sprint))
+
+(defun org-jira-move-issue-to-sprint (issue)
+  (let* ((board (org-jira-read-board))
+         (board-id (cdr board))
+         (sprint (org-jira-read-sprint board-id))
+         (sprint-id (cdr sprint)))
+    (org-jira--move-issue-to-sprint issue sprint-id)
+    (org-jira-entry-put (point) "Sprint" (car sprint))))
+
 
 (defun org-jira-read-component (project)
   "Read the components options for PROJECT such as EX."
@@ -1864,6 +1904,16 @@ that should be bound to an issue."
   (let* ((parent-id nil)
          (ticket-struct (org-jira-get-issue-struct project type summary description)))
     (org-jira-get-issues (list (jiralib-create-issue ticket-struct)))))
+
+(defun org-jira-move-current-issue-to-epic ()
+  (interactive)
+  (let ((issue-id (org-jira-get-from-org 'issue 'key)))
+    (org-jira-move-issue-to-epic issue-id)))
+
+(defun org-jira-move-current-issue-to-sprint ()
+  (interactive)
+  (let ((issue-id (org-jira-get-from-org 'issue 'key)))
+    (org-jira-move-issue-to-sprint issue-id)))
 
 ;;;###autoload
 (defun org-jira-create-subtask (project type summary description)
@@ -2557,7 +2607,7 @@ boards -  list of `org-jira-sdk-board' records."
 (defun org-jira-get-boards ()
   "Get list of boards and their properies."
   (interactive)
-  (let* ((datalist (jiralib-get-boards))
+  (let* ((datalist (jiralib-get-boards `((name ,org-jira-boards-name))))
          (boards (org-jira-sdk-create-boards-from-data-list datalist)))
     (org-jira--render-boards-from-list boards))
   (switch-to-buffer (org-jira--get-boards-buffer)))

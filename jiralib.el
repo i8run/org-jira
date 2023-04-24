@@ -408,7 +408,7 @@ request.el, so if at all possible, it should be avoided."
                      :data (json-encode `((body . ,(third params))))
                      :type "PUT"))
       ('getBoard  (jiralib--rest-call-it (format "/rest/agile/1.0/board/%s"  (first params))))
-      ('getBoards (apply 'jiralib--agile-call-it "/rest/agile/1.0/board" 'values params))
+      ('getBoards (apply 'jiralib--agile-call-it "/rest/agile/latest/board" 'values params))
       ('getComment (org-jira-find-value
                      (jiralib--rest-call-it
                       (format "/rest/api/latest/issue/%s/comment/%s" (first params) (second params)))
@@ -429,7 +429,18 @@ request.el, so if at all possible, it should be avoided."
 				   (format "rest/agile/1.0/board/%d/issue" (first params))
 				   'issues
 				   (cdr params)))
-      ('getSprintsFromBoard  (jiralib--rest-call-it (format "/rest/agile/1.0/board/%s/sprint"  (first params))))
+      ('getEpicsFromBoard (jiralib--rest-call-it
+                           (format "/rest/agile/latest/board/%s/epic?done=false" (first params))))
+      ('moveIssueToEpic (jiralib--rest-call-it
+                         (format "/rest/agile/latest/epic/%s/issue" (second params))
+                         :data (json-encode `((issues . (,(first params)))))
+                         :type "POST"))
+      ('moveIssueToSprint (jiralib--rest-call-it
+                           (format "/rest/agile/latest/sprint/%s/issue" (second params))
+                           :data (json-encode `((issues . (,(first params)))))
+                           :type "POST"))
+      ('getSprintsFromBoard  (jiralib--rest-call-it
+                              (format "/rest/agile/1.0/board/%s/sprint?state=active"  (first params))))
       ('getIssuesFromSprint  (apply 'jiralib--agile-call-it
 				   (format "rest/agile/1.0/sprint/%d/issue" (first params))
 				   'issues
@@ -1194,13 +1205,17 @@ Auxiliary Notes:
   "Return details on given board"
   (jiralib-call "getBoard" nil id))
 
-(defun jiralib-get-boards ()
+(defun jiralib-get-boards (&optional params)
   "Return list of jira boards"
-  (jiralib-call "getBoards" nil))
+  (jiralib-call "getBoards" nil :query-params params))
 
 (defun jiralib-get-board-sprints (id)
   "Return list of jira sprints in the specified jira board"
   (jiralib-call "getSprintsFromBoard" nil id))
+
+(defun jiralib-get-board-epics (id)
+  "Return list of jira epics in the specified jira board"
+  (jiralib-call "getEpicsFromBoard" nil id))
 
 (defun jiralib-get-sprint-issues (id &rest params)
   "Return list of issues in the specified sprint"
@@ -1210,7 +1225,13 @@ Auxiliary Notes:
 (defun jiralib-get-board-issues (board-id &rest params)
   "Return list of jira issues in the specified jira board"
   (apply 'jiralib-call "getIssuesFromBoard"
-	 (cl-getf params :callback) board-id params))
+	     (cl-getf params :callback) board-id params))
+
+(defun jiralib-move-issue-to-epic (issue epic)
+  (jiralib-call "moveIssueToEpic" nil issue epic))
+
+(defun jiralib-move-issue-to-sprint (issue sprint)
+  (jiralib-call "moveIssueToSprint" nil issue sprint))
 
 (defun jiralib--agile-not-last-entry (num-entries total start-at limit)
   "Return true if need to retrieve next page from agile api"
