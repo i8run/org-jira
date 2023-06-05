@@ -412,7 +412,7 @@ See `org-default-priority' for more info."
      (save-restriction
        (widen)
        (org-save-outline-visibility t
-         (outline-show-all)
+         ;; (outline-show-all)
          ,@body))))
 
 (defvar org-jira-proj-key-override nil
@@ -942,8 +942,8 @@ jql."
     (jiralib-do-jql-search jql)))
 
 
-(defvar org-to-jira-command "pandoc -f org -w markdown | /home/yanzhang/.local/lib/node_modules/j2m/src/bin/j2m.js --toJ --stdin")
-(defvar jira-to-org-command "/home/yanzhang/.local/lib/node_modules/j2m/src/bin/j2m.js --toM --stdin | pandoc -f gfm -w org")
+(defvar org-to-jira-command "pandoc --from=org --to=gfm --columns=1000 | /home/yanzhang/.local/lib/node_modules/j2m/src/bin/j2m.js --toJ --stdin")
+(defvar jira-to-org-command "python ~/.emacs.d/scripts/convert.py | dos2unix | pandoc --from=markdown --to=org --columns=120")
 
 (defun transform-content-with-command (content command)
   (with-temp-buffer
@@ -954,10 +954,12 @@ jql."
         (shell-command-on-region begin end command standard-output)))))
 
 (defun convert-org-to-jira (content)
-  (transform-content-with-command content org-to-jira-command))
+  (transform-content-with-command content
+                                  org-to-jira-command))
 
 (defun convert-jira-to-org (content)
-  (transform-content-with-command content jira-to-org-command))
+  (message content)
+  (transform-content-with-command (string-replace "\r" "" content) jira-to-org-command))
 
 
 ;;;###autoload
@@ -1249,9 +1251,10 @@ ISSUES is a list of `org-jira-sdk-issue' records."
 
   ;; Prior text: "Oh, are you the culprit?" - Not sure if this caused an issue at some point.
   ;; We want to ensure we fix broken org narrowing though, by doing org-show-all and then org-cycle.
-  (switch-to-buffer (org-jira--get-project-buffer (-last-item Issues)))
-  (org-show-all)
-  (org-cycle))
+  ;; (switch-to-buffer (org-jira--get-project-buffer (-last-item Issues)))
+  ;; (org-show-all)
+  ;; (org-cycle)
+  (org-reveal))
 
 ;;;###autoload
 ;; (defun org-jira-update-comment ()
